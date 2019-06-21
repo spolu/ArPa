@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "ArPa",
+  "version": "0.1",
+  "description": "Makes you faster.",
+  "content_scripts": [
+    {
+      "matches": ["*://*/*"],
+      "js": ["arpa.js"]
+    }
+  ],
+  "applications": {
+    "gecko": {
+      "id": "arpa@or1g1n.tech"
+    }
+  }
+}
