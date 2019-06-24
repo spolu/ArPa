@@ -193,9 +193,8 @@ window.onkeydown = (event) => {
       _ARPA_INJECT.click();
     }
     event.preventDefault();
+    return false;
   }
-
-  return false;
 };
 
 (() => {
