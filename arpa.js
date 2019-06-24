@@ -51,6 +51,18 @@ const _ARPA_ACTIONS = [
       ["h2", 0],
       ["a", 0]
     ]
+  }, {
+    href: '.*syn.eu.ngrok.io.*',
+    path: [
+      ["tf-tensorboard", 0],
+      ["paper-header-panel", 0],
+      ["paper-toolbar", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 1],
+      ["paper-icon-button", 0],
+      ["iron-icon", 0]
+    ]
   }
 ];
 
