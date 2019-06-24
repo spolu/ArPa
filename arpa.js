@@ -63,6 +63,16 @@ const _ARPA_ACTIONS = [
       ["paper-icon-button", 0],
       ["iron-icon", 0]
     ]
+  }, {
+    href: '.*mail.protonmail.com.*',
+    path: [
+      ["div", 1],
+      ["form", 0],
+      ["div", 0],
+      ["footer", 0],
+      ["div", 0 ],
+      ["button", 2]
+    ]
   }
 ];
 
@@ -174,7 +184,10 @@ window.document.addEventListener('readystatechange', (event) => {
 
 window.onkeyup = (event) => {
   if(event.keyCode === 191 && event.ctrlKey) {
+    console.log('[ArPa v0.1] REQUEST');
+    console.log(_ARPA_INJECT);
     if (_ARPA_INJECT) {
+      console.log('[ArPa v0.1] EXECUTE');
       _ARPA_INJECT.click();
     }
   }
@@ -191,6 +204,17 @@ window.onkeyup = (event) => {
       runLoop();
     }
   }, 50);
+
+  var observer = new MutationObserver((mutationList, observer) => {
+    console.log('[ArPa v0.1] MUTATION');
+    runLoop();
+  });
+  observer.observe(document.body, {
+    attributes: false,
+    childList: true,
+    subtree: true
+  });
+
 
   runLoop();
 })();
