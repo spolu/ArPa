@@ -3,27 +3,65 @@
 // Useful links:
 // https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
 
-const ACTIONS = [
+const _ARPA_ACTIONS = [
   {
     href: '.*github.com/.*/.*',
     path: [
-      ["body", 0],
       ["div", 3],
       ["div", 0],
       ["main", 0],
       ["div", 0],
-      ["nav", 0 ],
+      ["nav", 0],
       ["span", 2],
       ["a", 0],
-      ["span", 0],
+    ]
+  }, {
+    href: '.*google.com/search?.*',
+    path: [
+      ["div", 5],
+      ["div", 2],
+      ["div", 9],
+      ["div", 0],
+      ["div", 1],
+      ["div", 0],
+      ["div", 1],
+      ["div", 1],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["div", 0],
+      ["a", 0]
+    ]
+  }, {
+    href: '.*duckduckgo.com/?',
+    path: [
+      ["div", 1],
+      ["div", 3],
+      ["div", 2],
+      ["div", 0],
+      ["div", 0],
+      ["div", 4],
+      ["div", 0],
+      ["div", 0],
+      ["h2", 0],
+      ["a", 0]
     ]
   }
 ];
 
+let _ARPA_INJECTED = false;
+let _ARPA_INJECT = null;
+let _ARPA_HREF = null;
+
 const cssPath = (el) => {
   const path = [];
 
-  while (el.parentNode != null && el.nodeName.toLowerCase() != 'html') {
+  while (el.parentNode != null && el !== document.body) {
     let sibCount = 0;
     let sibIndex = 0;
 
@@ -44,25 +82,58 @@ const cssPath = (el) => {
 };
 
 const getPath = (path) => {
-  if (document.getElementsByTagName('html').length != 1) {
-    return null;
-  }
-  let el = document.getElementsByTagName('html');
+  let el = document.body
 
   while (path.length > 0) {
     let p = path.shift();
+
+    let next = null;
+    let chldIndex = 0;
+    for (var i = 0; i < el.childNodes.length; i++) {
+      const chld = el.childNodes[i];
+      if (chld.nodeName.toLowerCase() == p[0]) {
+        if (chldIndex === p[1]) {
+          next = chld;
+          break;
+        }
+        chldIndex++;
+      }
+    }
+    if (next == null) {
+      return null;
+    } else {
+      el = next;
+    }
   }
 
   return el;
 };
 
 let runLoop = () => {
-  actions = document.getElementsByClassName("_arpa_action");
-  for (let el of actions) {
-    el.remove();
+  console.log('[ArPa v0.1] RUNLOOP ' + _ARPA_HREF);
+
+  if (!_ARPA_INJECTED) {
+    let style = document.createElement('style');
+    style.innerHTML = '._arpa_action { background-color: red; }';
+    document.body.appendChild(style);
+    _ARPA_INJECTED = true;
   }
 
-  console.log('[ArPa v0.1] RUNLOOP ' + window.location.href);
+  _ARPA_INJECT = null;
+  _ARPA_ACTIONS.forEach((action) => {
+    let el = getPath(action.path.slice());
+    if (el != null) {
+      _ARPA_INJECT = el;
+    }
+  });
+
+  oldInjects = document.getElementsByClassName("_arpa_action");
+  for (let el of oldInjects) {
+    el.classList.remove('_arpa_action');
+  }
+  if (_ARPA_INJECT != null) {
+    _ARPA_INJECT.classList.add('_arpa_action');
+  }
 };
 
 window.addEventListener('focus', () => {
@@ -89,14 +160,22 @@ window.document.addEventListener('readystatechange', (event) => {
   runLoop();
 });
 
+window.onkeyup = (event) => {
+  if(event.keyCode === 191 && event.ctrlKey) {
+    if (_ARPA_INJECT) {
+      _ARPA_INJECT.click();
+    }
+  }
+};
+
 (() => {
   console.log('[ArPa v0.1] EXEC');
 
-  let currHRef = window.location.href;
+  _ARPA_HREF = window.location.href;
   window.setInterval(() => {
-    if (window.location.href !== currHRef) {
-      currHRef = window.location.href;
-      console.log('[ArPa v0.1] HREF ' + currHRef);
+    if (window.location.href !== _ARPA_HREF) {
+      _ARPA_HREF = window.location.href;
+      console.log('[ArPa v0.1] HREF ' + _ARPA_HREF);
       runLoop();
     }
   }, 50);
