@@ -182,15 +182,20 @@ window.document.addEventListener('readystatechange', (event) => {
   runLoop();
 });
 
-window.onkeyup = (event) => {
-  if(event.keyCode === 191 && event.ctrlKey) {
+window.onkeydown = (event) => {
+  // console.log(event);
+
+  if(event.keyCode === 74 && event.metaKey) {
     console.log('[ArPa v0.1] REQUEST');
     console.log(_ARPA_INJECT);
     if (_ARPA_INJECT) {
       console.log('[ArPa v0.1] EXECUTE');
       _ARPA_INJECT.click();
     }
+    event.preventDefault();
   }
+
+  return false;
 };
 
 (() => {
@@ -214,7 +219,6 @@ window.onkeyup = (event) => {
     childList: true,
     subtree: true
   });
-
 
   runLoop();
 })();
