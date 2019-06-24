@@ -5,7 +5,7 @@
   "description": "Makes you faster.",
   "content_scripts": [
     {
-      "matches": ["*://*/*"],
+      "matches": ["<all_urls>"],
       "js": ["arpa.js"],
       "all_frames": true,
       "run_at": "document_idle"
