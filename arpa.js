@@ -3,6 +3,8 @@
 // Useful links:
 // https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
 
+console.log('[ArPa v0.1] INITIAL LOAD');
+
 const _ARPA_ACTIONS = [
   {
     href: '.*github.com/.*/.*',
@@ -18,7 +20,7 @@ const _ARPA_ACTIONS = [
   }, {
     href: '.*google.com/search?.*',
     path: [
-      ["div", 5],
+      ["div", 6],
       ["div", 2],
       ["div", 9],
       ["div", 0],
@@ -41,7 +43,7 @@ const _ARPA_ACTIONS = [
     href: '.*duckduckgo.com/?',
     path: [
       ["div", 1],
-      ["div", 3],
+      ["div", 4],
       ["div", 2],
       ["div", 0],
       ["div", 0],
@@ -72,6 +74,24 @@ const _ARPA_ACTIONS = [
       ["footer", 0],
       ["div", 0 ],
       ["button", 2]
+    ]
+  }, {
+    href: '.*mail.protonmail.com.*',
+    path: [
+      ["div", 1],
+      ["div", 0],
+      ["section", 0],
+      ["ul", 0],
+      ["li", 0 ],
+      ["a", 0]
+    ]
+  }, {
+    href: '.*mail.protonmail.com.*',
+    path: [
+      ["div", 0],
+      ["form", 0],
+      ["div", 1],
+      ["button", 1]
     ]
   }
 ];
@@ -136,7 +156,7 @@ let runLoop = () => {
 
   if (!_ARPA_INJECTED) {
     let style = document.createElement('style');
-    style.innerHTML = '._arpa_action { background-color: red; }';
+    style.innerHTML = '._arpa_action { background-color: red !important; }';
     document.body.appendChild(style);
     _ARPA_INJECTED = true;
   }
@@ -185,14 +205,16 @@ window.document.addEventListener('readystatechange', (event) => {
 window.onkeydown = (event) => {
   // console.log(event);
 
-  if(event.keyCode === 74 && event.metaKey) {
+  if(event.keyCode === 190 && event.metaKey) {
+    event.preventDefault();
+
     console.log('[ArPa v0.1] REQUEST');
     console.log(_ARPA_INJECT);
     if (_ARPA_INJECT) {
       console.log('[ArPa v0.1] EXECUTE');
       _ARPA_INJECT.click();
     }
-    event.preventDefault();
+
     return false;
   }
 };
