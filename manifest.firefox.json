@@ -3,6 +3,7 @@
   "name": "ArPa",
   "version": "0.1",
   "description": "Makes you faster.",
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": ["*://*/*"],
