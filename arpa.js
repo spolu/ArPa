@@ -45,7 +45,7 @@ class PathNode {
     if (hash) {
       this.hash = hash;
     } else {
-      this.hash = `${this.tag}-${this.index}-${hashCode(this.class)}`;
+      this.hash = `${this.tag}-${this.index}`;
     }
   }
 
@@ -218,14 +218,13 @@ class Domain {
     }
     let actions = [];
     let index = {};
-    console.log(obj.actions);
     for (let a of obj.actions) {
-      console.log('DESERIALIZING ACTION');
-      console.log(a);
-      action = Action.deserialize(a.action);
-      actions.push({ action: action, count: a.count });
-      index[action.hash] = a.count;
-      console.log(action);
+      let v = {
+        action: Action.deserialize(a.action),
+        count: a.count,
+      };
+      actions.push(v);
+      index[v.action.hash] = v;
     }
     let d = new Domain(obj.hostname);
     d.actions = actions;
@@ -241,7 +240,7 @@ class Domain {
       };
       this.actions.push(this.index[action.hash])
     }
-    this.index[action.hash].count += 1
+    this.index[action.hash].count += 1;
     this.actions.sort((a, b) => {
       if(a.count < b.coiunt) return -1;
       if(a.count > b.coiunt) return 1;
@@ -267,17 +266,16 @@ const onError = (error) => {
 };
 
 const saveAction = (action) => {
-  console.log('[ArPa v0.1] SAVE_ACTION');
   const hostname = window.location.hostname;
-  STORAGE.local.get(hostname).then((domain) => {
-    console.log('RETRIEVED');
-    console.log(domain[hostname]);
-    domain = Domain.deserialize(domain[hostname]);
-    domain = domain || new Domain(hostname);
-    console.log(domain);
+  STORAGE.local.get(hostname).then((data) => {
+    let domain = null;
+    if (data[hostname]) {
+      domain = Domain.deserialize(data[hostname]);
+    } else {
+      domain = new Domain(hostname);
+    }
     domain.saveAction(action);
-    console.log('SAVE ACTION DONE');
-    console.log(domain);
+
     STORAGE.local.set({
       [hostname]: domain.serialize(),
     }).then(() => {
@@ -297,29 +295,28 @@ let runLoop = () => {
     INJECTED = true;
   }
 
-  INJECT = null;
   const hostname = window.location.hostname;
 
-  STORAGE.local.get(hostname).then((domain) => {
-    domain = Domain.deserialize(domain[hostname]);
+  STORAGE.local.get(hostname).then((data) => {
+    let domain = null;
+    if (data[hostname]) {
+      domain = Domain.deserialize(data[hostname]);
+    }
     if (domain) {
-      console.log('RETRIEVED RUNLOOP')
-      console.log(domain)
-      let el = domain.target()
-      console.log(el)
-      if (el != null) {
-        INJECT = el;
+      let target = domain.target()
+      if (target != null) {
+        oldInjects = document.getElementsByClassName("_arpa_action");
+        for (let el of oldInjects) {
+          el.classList.remove('_arpa_action');
+        }
+        if (target != null) {
+          target.classList.add('_arpa_action');
+        }
+        INJECT = target;
       }
     }
   }, onError);
 
-  oldInjects = document.getElementsByClassName("_arpa_action");
-  for (let el of oldInjects) {
-    el.classList.remove('_arpa_action');
-  }
-  if (INJECT != null) {
-    INJECT.classList.add('_arpa_action');
-  }
 };
 
 
@@ -343,6 +340,7 @@ window.addEventListener('mousedown', (event) => {
   if (action) {
     saveAction(action);
   }
+  setTimeout(runLoop);
 });
 
 window.document.addEventListener('readystatechange', (event) => {
@@ -384,15 +382,15 @@ window.onkeydown = (event) => {
     }
   }, 50);
 
-  let observer = new MutationObserver((mutationList, observer) => {
-    console.log('[ArPa v0.1] MUTATION');
-    runLoop();
-  });
-  observer.observe(document.body, {
-    attributes: false,
-    childList: true,
-    subtree: true
-  });
+  // let observer = new MutationObserver((mutationList, observer) => {
+  //   console.log('[ArPa v0.1] MUTATION');
+  //   runLoop();
+  // });
+  // observer.observe(document.body, {
+  //   attributes: false,
+  //   childList: true,
+  //   subtree: true
+  // });
 
   if (browser && browser.storage) {
     STORAGE = browser.storage
