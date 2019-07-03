@@ -226,9 +226,17 @@ class Domain {
       actions.push(v);
       index[v.action.hash] = v;
     }
+
+    actions.sort((a, b) => {
+      if(a.count < b.count) return 1;
+      if(a.count > b.count) return -1;
+      return 0;
+    })
+
     let d = new Domain(obj.hostname);
     d.actions = actions;
     d.index = index;
+
     return d;
   }
 
@@ -241,9 +249,10 @@ class Domain {
       this.actions.push(this.index[action.hash])
     }
     this.index[action.hash].count += 1;
+
     this.actions.sort((a, b) => {
-      if(a.count < b.coiunt) return -1;
-      if(a.count > b.coiunt) return 1;
+      if(a.count < b.count) return 1;
+      if(a.count > b.count) return -1;
       return 0;
     })
   }
@@ -286,7 +295,7 @@ const saveAction = (action) => {
 
 
 let runLoop = () => {
-  console.log('[ArPa v0.1] RUNLOOP ' + HREF);
+  // console.log('[ArPa v0.1] RUNLOOP ' + HREF);
 
   if (!INJECTED) {
     let style = document.createElement('style');
@@ -340,7 +349,6 @@ window.addEventListener('mousedown', (event) => {
   if (action) {
     saveAction(action);
   }
-  setTimeout(runLoop);
 });
 
 window.document.addEventListener('readystatechange', (event) => {
@@ -404,5 +412,5 @@ window.onkeydown = (event) => {
     console.log(all);
   }, onError)
 
-  runLoop();
+  setInterval(runLoop, 500);
 })();
