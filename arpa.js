@@ -1,182 +1,333 @@
 // ArPa v.01
-//
-// Useful links:
-// https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
 
-console.log('[ArPa v0.1] INITIAL LOAD');
+/**
+ * Global constants.
+ */
+const ACTION_TAGS = ['a', 'button'];
 
-const _ARPA_ACTIONS = [
-  {
-    href: '.*github.com/.*/.*',
-    path: [
-      ["div", 3],
-      ["div", 0],
-      ["main", 0],
-      ["div", 0],
-      ["nav", 0],
-      ["span", 2],
-      ["a", 0],
-    ]
-  }, {
-    href: '.*google.com/search?.*',
-    path: [
-      ["div", 6],
-      ["div", 2],
-      ["div", 9],
-      ["div", 0],
-      ["div", 1],
-      ["div", 0],
-      ["div", 1],
-      ["div", 1],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 0],
-      ["a", 0]
-    ]
-  }, {
-    href: '.*duckduckgo.com/?',
-    path: [
-      ["div", 1],
-      ["div", 4],
-      ["div", 2],
-      ["div", 0],
-      ["div", 0],
-      ["div", 4],
-      ["div", 0],
-      ["div", 0],
-      ["h2", 0],
-      ["a", 0]
-    ]
-  }, {
-    href: '.*syn.eu.ngrok.io.*',
-    path: [
-      ["tf-tensorboard", 0],
-      ["paper-header-panel", 0],
-      ["paper-toolbar", 0],
-      ["div", 0],
-      ["div", 0],
-      ["div", 1],
-      ["paper-icon-button", 0],
-      ["iron-icon", 0]
-    ]
-  }, {
-    href: '.*mail.protonmail.com.*',
-    path: [
-      ["div", 1],
-      ["form", 0],
-      ["div", 0],
-      ["footer", 0],
-      ["div", 0 ],
-      ["button", 2]
-    ]
-  }, {
-    href: '.*mail.protonmail.com.*',
-    path: [
-      ["div", 1],
-      ["div", 0],
-      ["section", 0],
-      ["ul", 0],
-      ["li", 0 ],
-      ["a", 0]
-    ]
-  }, {
-    href: '.*mail.protonmail.com.*',
-    path: [
-      ["div", 0],
-      ["form", 0],
-      ["div", 1],
-      ["button", 1]
-    ]
+/**
+ * Global variables representing the state of the current page.
+ */
+let INJECTED = false;
+let INJECT = null;
+let HREF = null;
+let STORAGE = null
+
+/**
+ * `hashCode` efficiently hashes string to integer.
+ */
+let hashCode = (str) => {
+  let hash = 0, i, chr;
+  if (str.length === 0) return hash;
+  for (i = 0; i < str.length; i++) {
+    chr = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0;
   }
-];
-
-let _ARPA_INJECTED = false;
-let _ARPA_INJECT = null;
-let _ARPA_HREF = null;
-
-const cssPath = (el) => {
-  const path = [];
-
-  while (el.parentNode != null && el !== document.body) {
-    let sibCount = 0;
-    let sibIndex = 0;
-
-    for (var i = 0; i < el.parentNode.childNodes.length; i++) {
-      const sib = el.parentNode.childNodes[i];
-      if (sib.nodeName == el.nodeName) {
-        if (sib === el) {
-          sibIndex = sibCount;
-        }
-        sibCount++;
-      }
-    }
-    path.unshift([el.nodeName.toLowerCase(), sibIndex]);
-    el = el.parentNode;
-  }
-
-  return path;
+  return Math.abs(hash);
 };
 
-const getPath = (path) => {
-  let el = document.body
 
-  while (path.length > 0) {
-    let p = path.shift();
+/**
+ * `PathNode` specifies a sepcific child in an `Action` path.
+ *
+ * A child along the path of an `Action` is specified by a `PathNode` that is:
+ * - its `tag`.
+ * - its `index` in the siblings for the same parent and tag.
+ * - its `class` attribute.
+ */
+class PathNode {
+  constructor(tag, index, cls, hash) {
+    this.tag = tag;
+    this.index = index;
+    this.class = cls || '';
 
-    let next = null;
-    let chldIndex = 0;
-    for (var i = 0; i < el.childNodes.length; i++) {
-      const chld = el.childNodes[i];
-      if (chld.nodeName.toLowerCase() == p[0]) {
-        if (chldIndex === p[1]) {
-          next = chld;
-          break;
+    if (hash) {
+      this.hash = hash;
+    } else {
+      this.hash = `${this.tag}-${this.index}`;
+    }
+  }
+
+  serialize() {
+    return {
+      tag: this.tag,
+      index: this.index,
+      class: this.class,
+      hash: this.hash,
+    };
+  }
+
+  static deserialize(obj) {
+    return new PathNode(obj.tag, obj.index, obj.class, obj.hash);
+  }
+
+  static classForElement(el) {
+    let cls = '';
+    if (el.attributes['class']) {
+      cls = el.attributes['class'].value.toLowerCase();
+    }
+    return cls;
+  }
+}
+
+
+/**
+ * `Action` represents a user action by its path of `PathNode`.
+ *
+ * It exposes the ability to `target` an element in the current DOM (or returns
+ * null if the `Action` path does not match any element) as well as a static
+ * method to create a new `Action` from a given DOM element.
+ *
+ * Pathes are very strict (and therefore brittle). They don't resist to minor
+ * page changes.
+ */
+class Action {
+  constructor(path, hash) {
+    this.path = path;
+
+    let h = 0;
+    for (let p of path) {
+      h += hashCode(p.hash);
+    }
+    if (hash) {
+      this.hash = hash;
+    } else {
+      this.hash = `action-${h}`
+    }
+  }
+
+  serialize() {
+    let obj = {
+      path: [],
+      hash: this.hash,
+    }
+    for (let p of this.path) {
+      obj.path.push(p.serialize())
+    }
+    return obj;
+  }
+
+  static deserialize(obj) {
+    let path = [];
+    for (let p of obj.path) {
+      path.push(PathNode.deserialize(p));
+    }
+    return new Action(path, obj.hash);
+  }
+
+  target() {
+    let el = document.body;
+
+    for (let i = 0; i < this.path.length; i ++) {
+      const p = this.path[i];
+
+      let next = null;
+      let index = 0;
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const chld = el.childNodes[i];
+        if (chld.nodeName.toLowerCase() == p.tag) {
+          if (index === p.index) {
+            next = chld;
+            break;
+          }
+          index++;
         }
-        chldIndex++;
+      }
+      if (next == null) {
+        return null;
+      } else {
+        el = next;
       }
     }
-    if (next == null) {
+
+    return el;
+  }
+
+  static fromElement(el) {
+    const path = [];
+
+    while (el.parentNode != null && el !== document.body) {
+      let sibCount = 0;
+      let sibIndex = 0;
+
+      for (let i = 0; i < el.parentNode.childNodes.length; i++) {
+        const sib = el.parentNode.childNodes[i];
+        if (sib.nodeName == el.nodeName) {
+          if (sib === el) {
+            sibIndex = sibCount;
+          }
+          sibCount++;
+        }
+      }
+
+      path.unshift(
+        new PathNode(
+          el.nodeName.toLowerCase(),
+          sibIndex,
+          PathNode.classForElement(el),
+        )
+      );
+      el = el.parentNode;
+    }
+
+    let idx = -1;
+    for (let i = 0; i < path.length; i++) {
+      if (ACTION_TAGS.includes(path[i].tag)) {
+        idx = i
+      }
+    }
+    if (idx < 0) {
       return null;
     } else {
-      el = next;
+      return new Action(path.slice(0, idx+1));
     }
   }
+}
 
-  return el;
+/**
+ * `Domain` represents an ordered set of actions (by usage) for a given domain
+ * or more precisely `hostname`.
+ *
+ * It exposes the capability to record a new `Action` as well as target the
+ * element of the current DOM matching the highest ranked action for which it
+  * exists.
+ */
+class Domain {
+  constructor(hostname) {
+    this.hostname = hostname;
+
+    this.index = {}
+    this.actions = []
+  }
+
+  serialize() {
+    let actions = [];
+    for (let a of this.actions) {
+      actions.push({ action: a.action.serialize(), count: a.count });
+    }
+    return {
+      hostname: this.hostname,
+      actions: actions,
+    };
+  }
+
+  static deserialize(obj) {
+    if (!obj.hostname) {
+      return null;
+    }
+    let actions = [];
+    let index = {};
+    for (let a of obj.actions) {
+      let v = {
+        action: Action.deserialize(a.action),
+        count: a.count,
+      };
+      actions.push(v);
+      index[v.action.hash] = v;
+    }
+
+    actions.sort((a, b) => {
+      if(a.count < b.count) return 1;
+      if(a.count > b.count) return -1;
+      return 0;
+    })
+
+    let d = new Domain(obj.hostname);
+    d.actions = actions;
+    d.index = index;
+
+    return d;
+  }
+
+  saveAction(action) {
+    if (!(action.hash in this.index)) {
+      this.index[action.hash] = {
+        action: action,
+        count: 0,
+      };
+      this.actions.push(this.index[action.hash])
+    }
+    this.index[action.hash].count += 1;
+
+    this.actions.sort((a, b) => {
+      if(a.count < b.count) return 1;
+      if(a.count > b.count) return -1;
+      return 0;
+    })
+  }
+
+  target() {
+    for (let a of this.actions) {
+      let el = a.action.target();
+      if (el) {
+        return el;
+      }
+    }
+    return null;
+  }
+}
+
+
+const onError = (error) => {
+  console.log('[ArPa v0.1] ERROR');
+  console.log(error);
 };
 
-let runLoop = () => {
-  console.log('[ArPa v0.1] RUNLOOP ' + _ARPA_HREF);
+const saveAction = (action) => {
+  const hostname = window.location.hostname;
+  STORAGE.local.get(hostname).then((data) => {
+    let domain = null;
+    if (data[hostname]) {
+      domain = Domain.deserialize(data[hostname]);
+    } else {
+      domain = new Domain(hostname);
+    }
+    domain.saveAction(action);
 
-  if (!_ARPA_INJECTED) {
+    STORAGE.local.set({
+      [hostname]: domain.serialize(),
+    }).then(() => {
+      console.log('[ArPa v0.1] ACTION_SAVED');
+    }, onError)
+  }, onError);
+};
+
+
+let runLoop = () => {
+  // console.log('[ArPa v0.1] RUNLOOP ' + HREF);
+
+  if (!INJECTED) {
     let style = document.createElement('style');
     style.innerHTML = '._arpa_action { background-color: red !important; }';
     document.body.appendChild(style);
-    _ARPA_INJECTED = true;
+    INJECTED = true;
   }
 
-  _ARPA_INJECT = null;
-  _ARPA_ACTIONS.forEach((action) => {
-    let el = getPath(action.path.slice());
-    if (el != null) {
-      _ARPA_INJECT = el;
+  const hostname = window.location.hostname;
+
+  STORAGE.local.get(hostname).then((data) => {
+    let domain = null;
+    if (data[hostname]) {
+      domain = Domain.deserialize(data[hostname]);
     }
-  });
+    if (domain) {
+      let target = domain.target()
+      if (target != null) {
+        oldInjects = document.getElementsByClassName("_arpa_action");
+        for (let el of oldInjects) {
+          el.classList.remove('_arpa_action');
+        }
+        if (target != null) {
+          target.classList.add('_arpa_action');
+        }
+        INJECT = target;
+      }
+    }
+  }, onError);
 
-  oldInjects = document.getElementsByClassName("_arpa_action");
-  for (let el of oldInjects) {
-    el.classList.remove('_arpa_action');
-  }
-  if (_ARPA_INJECT != null) {
-    _ARPA_INJECT.classList.add('_arpa_action');
-  }
 };
+
 
 window.addEventListener('focus', () => {
   console.log('[ArPa v0.1] FOCUS');
@@ -193,8 +344,11 @@ window.document.addEventListener("DOMContentLoaded", (event) => {
   runLoop();
 });
 
-window.addEventListener('click', (event) => {
-  console.log(cssPath(event.target));
+window.addEventListener('mousedown', (event) => {
+  let action = Action.fromElement(event.target);
+  if (action) {
+    saveAction(action);
+  }
 });
 
 window.document.addEventListener('readystatechange', (event) => {
@@ -209,37 +363,54 @@ window.onkeydown = (event) => {
     event.preventDefault();
 
     console.log('[ArPa v0.1] REQUEST');
-    console.log(_ARPA_INJECT);
-    if (_ARPA_INJECT) {
+    console.log(INJECT);
+    if (INJECT) {
       console.log('[ArPa v0.1] EXECUTE');
-      _ARPA_INJECT.click();
+      let action = Action.fromElement(INJECT);
+      if (action) {
+        saveAction(action);
+      }
+      INJECT.click();
     }
 
     return false;
   }
 };
 
-(() => {
-  console.log('[ArPa v0.1] EXEC');
 
-  _ARPA_HREF = window.location.href;
+(() => {
+  console.log('[ArPa v0.1] INITIAL LOAD');
+
+  HREF = window.location.href;
   window.setInterval(() => {
-    if (window.location.href !== _ARPA_HREF) {
-      _ARPA_HREF = window.location.href;
-      console.log('[ArPa v0.1] HREF ' + _ARPA_HREF);
+    if (window.location.href !== HREF) {
+      HREF = window.location.href;
+      console.log('[ArPa v0.1] HREF ' + HREF);
       runLoop();
     }
   }, 50);
 
-  var observer = new MutationObserver((mutationList, observer) => {
-    console.log('[ArPa v0.1] MUTATION');
-    runLoop();
-  });
-  observer.observe(document.body, {
-    attributes: false,
-    childList: true,
-    subtree: true
-  });
+  // let observer = new MutationObserver((mutationList, observer) => {
+  //   console.log('[ArPa v0.1] MUTATION');
+  //   runLoop();
+  // });
+  // observer.observe(document.body, {
+  //   attributes: false,
+  //   childList: true,
+  //   subtree: true
+  // });
 
-  runLoop();
+  if (browser && browser.storage) {
+    STORAGE = browser.storage
+  }
+  if (chrome && chrome.storage) {
+    STORAGE = chrome.storage
+  }
+
+  STORAGE.local.get(null).then((all) => {
+    console.log('RETRIEVE ALL STORAGE');
+    console.log(all);
+  }, onError)
+
+  setInterval(runLoop, 500);
 })();
