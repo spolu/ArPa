@@ -4,7 +4,7 @@
   "version": "0.1",
   "description": "Makes you faster.",
   "permissions": [
-    "tabs"
+    "tabs", "storage"
   ],
   "content_scripts": [
     {

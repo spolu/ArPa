@@ -27,6 +27,53 @@ let hashCode = (str) => {
   return Math.abs(hash);
 };
 
+/**
+ * `Storage` is a compatibility wrapper around storage primitives.
+ */
+class Storage {
+  constructor() {
+    if (!!window.chrome) {
+      this.storage = chrome.storage
+    } else {
+      this.storage = browser.storage
+    }
+  }
+
+  get(key) {
+    const storage = this.storage;
+    if (!!window.chrome) {
+      return new Promise(function(resolve, reject) {
+        storage.local.get(key, function(data) {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(data);
+          }
+        })
+      });
+    } else {
+      return storage.local.get(key);
+    }
+  }
+
+  set(data) {
+    const storage = this.storage;
+    if (!!window.chrome) {
+      return new Promise(function(resolve, reject) {
+        storage.local.set(data, function() {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve();
+          }
+        })
+      });
+    } else {
+      return storage.local.set(data);
+    }
+  }
+}
+
 
 /**
  * `PathNode` specifies a sepcific child in an `Action` path.
@@ -276,7 +323,7 @@ const onError = (error) => {
 
 const saveAction = (action) => {
   const hostname = window.location.hostname;
-  STORAGE.local.get(hostname).then((data) => {
+  STORAGE.get(hostname).then((data) => {
     let domain = null;
     if (data[hostname]) {
       domain = Domain.deserialize(data[hostname]);
@@ -285,7 +332,7 @@ const saveAction = (action) => {
     }
     domain.saveAction(action);
 
-    STORAGE.local.set({
+    STORAGE.set({
       [hostname]: domain.serialize(),
     }).then(() => {
       console.log('[ArPa v0.1] ACTION_SAVED');
@@ -306,7 +353,7 @@ let runLoop = () => {
 
   const hostname = window.location.hostname;
 
-  STORAGE.local.get(hostname).then((data) => {
+  STORAGE.get(hostname).then((data) => {
     let domain = null;
     if (data[hostname]) {
       domain = Domain.deserialize(data[hostname]);
@@ -400,14 +447,9 @@ window.onkeydown = (event) => {
   //   subtree: true
   // });
 
-  if (browser && browser.storage) {
-    STORAGE = browser.storage
-  }
-  if (chrome && chrome.storage) {
-    STORAGE = chrome.storage
-  }
+  STORAGE = new Storage()
 
-  STORAGE.local.get(null).then((all) => {
+  STORAGE.get(null).then((all) => {
     console.log('RETRIEVE ALL STORAGE');
     console.log(all);
   }, onError)
