@@ -4,6 +4,7 @@
  * Global constants.
  */
 const ACTION_TAGS = ['a', 'button'];
+const ACTION_REGEXS = [/button/, /btn/, /link/]
 
 /**
  * Global variables representing the state of the current page.
@@ -84,10 +85,12 @@ class Storage {
  * - its `class` attribute.
  */
 class PathNode {
-  constructor(tag, index, cls, hash) {
+  constructor(tag, index, id, cls, role, hash) {
     this.tag = tag;
     this.index = index;
+    this.id = id || '';
     this.class = cls || '';
+    this.role = role || '';
 
     if (hash) {
       this.hash = hash;
@@ -96,25 +99,56 @@ class PathNode {
     }
   }
 
+  isAction() {
+    if (ACTION_TAGS.includes(this.tag)) {
+      return true;
+    }
+    for (let r of ACTION_REGEXS) {
+      if (r.test(this.id) || r.test(this.class) || r.test(this.role)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   serialize() {
     return {
       tag: this.tag,
       index: this.index,
+      id: this.id,
       class: this.class,
+      role: this.role,
       hash: this.hash,
     };
   }
 
   static deserialize(obj) {
-    return new PathNode(obj.tag, obj.index, obj.class, obj.hash);
+    return new PathNode(
+      obj.tag,
+      obj.index,
+      obj.id,
+      obj.class,
+      obj.role,
+      obj.hash,
+    );
   }
 
-  static classForElement(el) {
-    let cls = '';
-    if (el.attributes['class']) {
-      cls = el.attributes['class'].value.toLowerCase();
+  static attrForElement(el, attr) {
+    let val = '';
+    if (el.attributes[attr]) {
+      val = el.attributes[attr].value.toLowerCase();
     }
-    return cls;
+    return val;
+  }
+
+  static fromElementAndIndex(el, index) {
+    return new PathNode(
+      el.nodeName.toLowerCase(),
+      index,
+      PathNode.attrForElement(el, 'id'),
+      PathNode.attrForElement(el, 'class'),
+      PathNode.attrForElement(el, 'role'),
+    );
   }
 }
 
@@ -208,19 +242,13 @@ class Action {
         }
       }
 
-      path.unshift(
-        new PathNode(
-          el.nodeName.toLowerCase(),
-          sibIndex,
-          PathNode.classForElement(el),
-        )
-      );
+      path.unshift(PathNode.fromElementAndIndex(el, sibIndex));
       el = el.parentNode;
     }
 
     let idx = -1;
     for (let i = 0; i < path.length; i++) {
-      if (ACTION_TAGS.includes(path[i].tag)) {
+      if (path[i].isAction()) {
         idx = i
       }
     }
@@ -403,6 +431,14 @@ window.document.addEventListener('readystatechange', (event) => {
   runLoop();
 });
 
+
+let triggerMouseEvent = (target, eventType) => {
+  var clickEvent = document.createEvent('MouseEvents');
+  clickEvent.initEvent(eventType, true, true);
+  target.dispatchEvent(clickEvent);
+  // console.log('[ArPa v0.1] TRIGGER', eventType);
+}
+
 window.onkeydown = (event) => {
   // console.log(event);
 
@@ -412,12 +448,16 @@ window.onkeydown = (event) => {
     console.log('[ArPa v0.1] REQUEST');
     console.log(INJECT);
     if (INJECT) {
-      console.log('[ArPa v0.1] EXECUTE');
       let action = Action.fromElement(INJECT);
       if (action) {
         saveAction(action);
       }
-      INJECT.click();
+
+      triggerMouseEvent(INJECT, "mouseover");
+      triggerMouseEvent(INJECT, "mousedown");
+      triggerMouseEvent(INJECT, "mouseup");
+      triggerMouseEvent(INJECT, "click");
+      console.log('[ArPa v0.1] EXECUTE');
     }
 
     return false;
