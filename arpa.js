@@ -29,6 +29,8 @@ const CONTEXT_HASH_SENSORS = {
 /**
  * Lists on which we're not running because mouse interactions are not working
  * as expected (and will probably need future fixing).
+ *
+ * TODO(stan): implement.
  */
 const BLACKLIST_DOMAINS = [
   'www.notion.so'
@@ -436,7 +438,6 @@ class Domain {
       this.contexts[c] = new Context()
     }
 
-    console.log('CONTEXT', c)
     if (c in this.contexts) {
       return this.contexts[c];
     }
