@@ -1,10 +1,39 @@
 // ArPa v.01
 
 /**
- * Global constants.
+ * ACTION_TAGS and ACTION_REGEXS are used to identify an element as an action.
  */
 const ACTION_TAGS = ['a', 'button'];
-const ACTION_REGEXS = [/button/, /btn/, /link/]
+const ACTION_REGEXS = [/button/, /btn/, /link/];
+
+
+/**
+ * To segment actions for a given context in a domain we use the following
+ * signals:
+ * - length of the URL path
+ * - length of the URL hash
+ * - value of URL path element at index defined in PATH_SENSORS
+ * - value of URL hash element at index defined in HASH_SENSORS
+ */
+const CONTEXT_PATH_SENSORS = {
+  'github.com': [3],
+  'console.cloud.google.com': [1, 2],
+  'us-east-2.console.aws.amazon.com': [1, 2, 4],
+  'mail.protonmail.com': [1],
+};
+
+const CONTEXT_HASH_SENSORS = {
+};
+
+
+/**
+ * Lists on which we're not running because mouse interactions are not working
+ * as expected (and will probably need future fixing).
+ */
+const BLACKLIST_DOMAINS = [
+  'www.notion.so'
+];
+
 
 /**
  * Global variables representing the state of the current page.
@@ -12,7 +41,8 @@ const ACTION_REGEXS = [/button/, /btn/, /link/]
 let INJECTED = false;
 let INJECT = null;
 let HREF = null;
-let STORAGE = null
+let STORAGE = null;
+
 
 /**
  * `hashCode` efficiently hashes string to integer.
@@ -27,6 +57,7 @@ let hashCode = (str) => {
   }
   return Math.abs(hash);
 };
+
 
 /**
  * `Storage` is a compatibility wrapper around storage primitives.
@@ -260,18 +291,17 @@ class Action {
   }
 }
 
+
 /**
- * `Domain` represents an ordered set of actions (by usage) for a given domain
- * or more precisely `hostname`.
+ * `Context` represents an ordered set of actions (by usage) for a given
+ * domain's context.
  *
  * It exposes the capability to record a new `Action` as well as target the
  * element of the current DOM matching the highest ranked action for which it
-  * exists.
+ * exists.
  */
-class Domain {
-  constructor(hostname) {
-    this.hostname = hostname;
-
+class Context {
+  constructor() {
     this.index = {}
     this.actions = []
   }
@@ -282,17 +312,14 @@ class Domain {
       actions.push({ action: a.action.serialize(), count: a.count });
     }
     return {
-      hostname: this.hostname,
       actions: actions,
     };
   }
 
   static deserialize(obj) {
-    if (!obj.hostname) {
-      return null;
-    }
     let actions = [];
     let index = {};
+
     for (let a of obj.actions) {
       let v = {
         action: Action.deserialize(a.action),
@@ -308,7 +335,7 @@ class Domain {
       return 0;
     })
 
-    let d = new Domain(obj.hostname);
+    let d = new Context();
     d.actions = actions;
     d.index = index;
 
@@ -344,10 +371,98 @@ class Domain {
 }
 
 
+/**
+ * `Domain` represents a set of context for a given domain (hostname).
+ *
+ *  Contexts are computed as described in the top-level comment for
+ *  CONTEXT_PATH_SENSORS and CONTEXT_HASH_SENSORS.
+ */
+class Domain {
+  constructor(hostname) {
+    this.hostname = hostname;
+    this.contexts = {}
+  }
+
+  serialize() {
+    let obj = {
+      hostname: this.hostname,
+      contexts: {},
+    };
+
+    for (let c of Object.keys(this.contexts)) {
+      obj.contexts[c] = this.contexts[c].serialize();
+    }
+
+    return obj
+  }
+
+  static deserialize(obj) {
+    if (!obj.hostname) {
+      return null;
+    }
+
+    let contexts = {}
+    for (let c of Object.keys(obj.contexts)) {
+      contexts[c] = Context.deserialize(obj.contexts[c]);
+    }
+
+    let d = new Domain(obj.hostname);
+    d.contexts = contexts;
+
+    return d;
+  }
+
+  context(create) {
+    const path = window.location.pathname.split("/");
+    const hash = window.location.hash.split("/");
+    const hostname = window.location.hostname;
+
+    let h = 0;
+
+    for (let idx of (CONTEXT_PATH_SENSORS[hostname] || [])) {
+      if (idx < path.length) {
+        h += hashCode(path[idx]);
+      }
+    }
+    for (let idx of (CONTEXT_HASH_SENSORS[hostname] || [])) {
+      if (idx < hash.length) {
+        h += hashCode(hash[idx]);
+      }
+    }
+
+    const c = `${path.length}-${hash.length}-${h}`;
+
+    if (create && !(c in this.contexts)) {
+      this.contexts[c] = new Context()
+    }
+
+    console.log('CONTEXT', c)
+    if (c in this.contexts) {
+      return this.contexts[c];
+    }
+    return null;
+  }
+
+  saveAction(action) {
+    return this.context(true).saveAction(action);
+  }
+
+  target() {
+    let c = this.context(false);
+
+    if (c) {
+      return c.target();
+    }
+    return null;
+  }
+}
+
+
 const onError = (error) => {
   console.log('[ArPa v0.1] ERROR');
   console.log(error);
 };
+
 
 const saveAction = (action) => {
   const hostname = window.location.hostname;
@@ -388,15 +503,15 @@ let runLoop = () => {
     }
     if (domain) {
       let target = domain.target()
+      INJECT = target;
+
+      oldInjects = document.getElementsByClassName("_arpa_action");
+      for (let el of oldInjects) {
+        el.classList.remove('_arpa_action');
+      }
+
       if (target != null) {
-        oldInjects = document.getElementsByClassName("_arpa_action");
-        for (let el of oldInjects) {
-          el.classList.remove('_arpa_action');
-        }
-        if (target != null) {
-          target.classList.add('_arpa_action');
-        }
-        INJECT = target;
+        target.classList.add('_arpa_action');
       }
     }
   }, onError);
@@ -406,17 +521,17 @@ let runLoop = () => {
 
 window.addEventListener('focus', () => {
   console.log('[ArPa v0.1] FOCUS');
-  runLoop();
+  setTimeout(runLoop);
 });
 
 window.onload = () => {
   console.log('[ArPa v0.1] LOAD');
-  runLoop();
+  setTimeout(runLoop);
 };
 
 window.document.addEventListener("DOMContentLoaded", (event) => {
   console.log('[ArPa v0.1] DOM_CONTENT_LOADED');
-  runLoop();
+  setTimeout(runLoop);
 });
 
 window.addEventListener('mousedown', (event) => {
@@ -428,7 +543,7 @@ window.addEventListener('mousedown', (event) => {
 
 window.document.addEventListener('readystatechange', (event) => {
   console.log('[ArPa v0.1] READY_STATE_CHANGE ' + document.readyState);
-  runLoop();
+  setTimeout(runLoop);
 });
 
 
@@ -457,6 +572,7 @@ window.onkeydown = (event) => {
       triggerMouseEvent(INJECT, "mousedown");
       triggerMouseEvent(INJECT, "mouseup");
       triggerMouseEvent(INJECT, "click");
+
       console.log('[ArPa v0.1] EXECUTE');
     }
 
@@ -473,7 +589,7 @@ window.onkeydown = (event) => {
     if (window.location.href !== HREF) {
       HREF = window.location.href;
       console.log('[ArPa v0.1] HREF ' + HREF);
-      runLoop();
+      setTimeout(runLoop)
     }
   }, 50);
 
@@ -494,5 +610,6 @@ window.onkeydown = (event) => {
     console.log(all);
   }, onError)
 
-  setInterval(runLoop, 500);
+  setInterval(runLoop, 250);
+  setTimeout(runLoop)
 })();
