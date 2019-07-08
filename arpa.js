@@ -16,7 +16,7 @@ const ACTION_REGEXS = [/button/, /btn/, /link/];
  * - value of URL hash element at index defined in HASH_SENSORS
  */
 const CONTEXT_PATH_SENSORS = {
-  'github.com': [2],
+  'github.com': [3],
   'console.cloud.google.com': [1, 2],
   'us-east-2.console.aws.amazon.com': [1, 2, 4],
   'mail.protonmail.com': [1],
